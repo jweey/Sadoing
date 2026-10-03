@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Language Lab</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#f3faf7;
+  color:#222
+}
+header{
+  background:#08c878;
+  color:white;
+  padding:20px;
+  font-size:24px;
+  font-weight:bold
+}
+main{
+  max-width:800px;
+  margin:auto;
+  padding:18px
+}
+.card{
+  background:white;
+  border-radius:18px;
+  padding:18px;
+  margin-bottom:18px;
+  box-shadow:0 3px 15px #0001
+}
+input,select,button{
+  width:100%;
+  padding:14px;
+  margin-top:10px;
+  border-radius:12px;
+  border:1px solid #ddd;
+  font-size:16px
+}
+button{
+  background:#08c878;
+  color:white;
+  border:0;
+  font-weight:bold
+}
+button:disabled{
+  opacity:.5
+}
+.status{
+  margin-top:12px;
+  font-size:14px
+}
+.line{
+  padding:15px 5px;
+  border-bottom:1px solid #eee;
+  cursor:pointer
+}
+.line:hover{
+  background:#f0fff8
+}
+.time{
+  color:#08a968;
+  font-size:12px;
+  margin-bottom:5px
+}
+.text{
+  font-size:18px;
+  line-height:1.5
+}
+.small{
+  color:#777;
+  font-size:13px;
+  margin-top:10px
+}
+</style>
+</head>
+
+<body>
+
+<header>🐸 My Language Lab</header>
+
+<main>
+
+<div class="card">
+  <h2>🎬 YouTube → Lời thoại</h2>
+
+  <input
+    id="url"
+    placeholder="Dán link YouTube vào đây..."
+  >
+
+  <select id="lang">
+    <option value="ja">🇯🇵 Nhật</option>
+    <option value="en">🇺🇸 Anh</option>
+    <option value="zh">🇨🇳 Trung</option>
+  </select>
+
+  <input
+    id="apiKey"
+    type="password"
+    placeholder="Supadata API key (chỉ dùng để test)"
+  >
+
+  <button id="run">
+    Phân tích video
+  </button>
+
+  <div id="status" class="status"></div>
+</div>
+
+<div class="card">
+  <h2>📝 Transcript</h2>
+  <div id="result">
+    Chưa có video.
+  </div>
+</div>
+
+</main>
+
+<script>
+
+const run = document.getElementById("run");
+const urlInput = document.getElementById("url");
+const keyInput = document.getElementById("apiKey");
+const langInput = document.getElementById("lang");
+const statusBox = document.getElementById("status");
+const result = document.getElementById("result");
+
+function formatTime(ms){
+  const total = Math.floor(ms / 1000);
+  const min = Math.floor(total / 60);
+  const sec = total % 60;
+
+  return `${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+}
+
+run.onclick = async () => {
+
+  const videoUrl = urlInput.value.trim();
+  const apiKey = keyInput.value.trim();
+  const lang = langInput.value;
+
+  if(!videoUrl){
+    statusBox.textContent = "⚠️ Hãy dán link YouTube.";
+    return;
+  }
+
+  if(!apiKey){
+    statusBox.textContent = "⚠️ Hãy nhập API key để test.";
+    return;
+  }
+
+  run.disabled = true;
+  statusBox.textContent = "⏳ Đang lấy lời thoại...";
+  result.innerHTML = "";
+
+  try{
+
+    const endpoint =
+      "https://api.supadata.ai/v1/transcript"
+      + "?url=" + encodeURIComponent(videoUrl)
+      + "&lang=" + encodeURIComponent(lang);
+
+    const response = await fetch(endpoint,{
+      method:"GET",
+      headers:{
+        "x-api-key":apiKey
+      }
+    });
+
+    const data = await response.json();
+
+    if(!response.ok){
+      throw new Error(
+        data.message ||
+        data.error ||
+        "API error " + response.status
+      );
+    }
+
+    if(!data.content || !data.content.length){
+      throw new Error("Không tìm thấy transcript.");
+    }
+
+    statusBox.textContent =
+      `✅ Đã lấy ${data.content.length} đoạn — ngôn ngữ: ${data.lang || lang}`;
+
+    data.content.forEach((item,index)=>{
+
+      const div = document.createElement("div");
+      div.className = "line";
+
+      div.innerHTML = `
+        <div class="time">
+          ${formatTime(item.offset)}
+        </div>
+
+        <div class="text">
+          ${escapeHtml(item.text)}
+        </div>
+      `;
+
+      div.onclick = () => {
+        alert(
+          "Câu " + (index + 1) +
+          "\\n\\n" +
+          item.text +
+          "\\n\\nTimestamp: " +
+          formatTime(item.offset)
+        );
+      };
+
+      result.appendChild(div);
+    });
+
+  }catch(error){
+
+    console.error(error);
+
+    statusBox.textContent =
+      "❌ " + error.message;
+
+    result.innerHTML =
+      "<div class='small'>" +
+      "Không lấy được transcript. Kiểm tra link và API key." +
+      "</div>";
+
+  }finally{
+
+    run.disabled = false;
+
+  }
+
+};
+
+function escapeHtml(text){
+
+  return String(text)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+
+}
+
+</script>
+
+</body>
+</html>
